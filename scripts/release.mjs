@@ -1,4 +1,11 @@
-import { copyFileSync, mkdirSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import {
+  copyFileSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -52,6 +59,14 @@ if (packageVersion !== version) {
   fail(`package.json is ${packageVersion} but manifest.json says ${version}. Bump them together.`);
 }
 
+// The release notes are this version's section of the changelog, and a version
+// with nothing written about it is almost always a version someone forgot to
+// write about.
+const notes = changelogSection(version);
+if (notes === null) {
+  fail(`CHANGELOG.md has no "## ${version}" section. Write one before releasing.`);
+}
+
 if (!exists(resolve(root, 'main.js'))) {
   fail('Missing main.js. Run "npm run build" first.');
 } else {
@@ -77,6 +92,11 @@ if (problems.length > 0) {
 mkdirSync(OUT, { recursive: true });
 for (const asset of ASSETS) copyFileSync(resolve(root, asset), resolve(OUT, asset));
 
+// Only this version's notes, not the whole changelog: a release describes
+// itself.
+const NOTES = resolve(OUT, 'release-notes.md');
+writeFileSync(NOTES, `${notes}\n`, 'utf8');
+
 console.log(`\n[release] ${manifest.name} ${version} collected into ${relative(root, OUT)}\n`);
 for (const asset of ASSETS) {
   console.log(`    ${asset.padEnd(14)} ${statSync(resolve(OUT, asset)).size} bytes`);
@@ -90,7 +110,7 @@ console.log('     branch: the directory reads the manifest from HEAD, not from t
 console.log('  2. Create the release. The tag must be the bare version, with no "v":\n');
 console.log(
   `       gh release create ${version} ${assetPaths} --repo ${REPO} ` +
-    `--title "${manifest.name} ${version}"\n`,
+    `--title "${manifest.name} ${version}" --notes-file dist-release/release-notes.md\n`,
 );
 console.log('  3. Submit at community.obsidian.md — sign in, connect GitHub, claim');
 console.log(`     ${REPO}, then Plugins > New plugin. Only the first`);
@@ -100,6 +120,28 @@ console.log('  never by moving a tag.\n');
 
 function readJson(path) {
   return JSON.parse(readFileSync(path, 'utf8'));
+}
+
+/**
+ * One version's section of CHANGELOG.md, from its `## <version>` heading to the
+ * next one. Returns null when the changelog says nothing about this version.
+ */
+function changelogSection(wanted) {
+  let changelog;
+  try {
+    changelog = readFileSync(resolve(root, 'CHANGELOG.md'), 'utf8');
+  } catch {
+    return null;
+  }
+
+  const lines = changelog.split(/\r?\n/);
+  const start = lines.findIndex((line) => line.trim() === `## ${wanted}`);
+  if (start === -1) return null;
+
+  const rest = lines.slice(start + 1);
+  const end = rest.findIndex((line) => line.startsWith('## '));
+  const body = (end === -1 ? rest : rest.slice(0, end)).join('\n').trim();
+  return body === '' ? null : body;
 }
 
 function exists(path) {
