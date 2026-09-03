@@ -1,0 +1,10 @@
+{
+  "id": "terminalogue-presenter",
+  "name": "Terminalogue Presenter",
+  "version": "0.5.2",
+  "minAppVersion": "1.4.0",
+  "description": "Turns a Marp note into an HTML presentation with animated Terminalogue terminals, and opens it in the default browser.",
+  "author": "Yuichi Mizutani",
+  "authorUrl": "https://github.com/yumizu11",
+  "isDesktopOnly": true
+}
